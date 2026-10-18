@@ -1,0 +1,78 @@
+name: Signed Android release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version name (for example 1.0.1)'
+        required: true
+      version_code:
+        description: 'Version code, strictly greater than every previous release'
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: makerpress-release
+  cancel-in-progress: false
+jobs:
+  release:
+    # Local test-channel tags must not attempt a build with an unrelated production key.
+    if: github.event_name == 'workflow_dispatch' || vars.MAKERPRESS_PRODUCTION_RELEASES == 'true'
+    runs-on: ubuntu-latest
+    env:
+      MAKERPRESS_STORE_PASSWORD: ${{ secrets.MAKERPRESS_STORE_PASSWORD }}
+      MAKERPRESS_KEY_ALIAS: ${{ secrets.MAKERPRESS_KEY_ALIAS }}
+      MAKERPRESS_KEY_PASSWORD: ${{ secrets.MAKERPRESS_KEY_PASSWORD }}
+      KEYSTORE_BASE64: ${{ secrets.MAKERPRESS_KEYSTORE_BASE64 }}
+      VERSION_CODE: ${{ inputs.version_code || vars.MAKERPRESS_VERSION_CODE }}
+      VERSION_NAME: ${{ inputs.version_name || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Validate credentials and version; restore stable signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in MAKERPRESS_STORE_PASSWORD MAKERPRESS_KEY_ALIAS MAKERPRESS_KEY_PASSWORD KEYSTORE_BASE64 VERSION_CODE VERSION_NAME; do
+            if [ -z "${!key}" ]; then echo "::error::Missing $key. No unsigned release will be published."; exit 1; fi
+          done
+          VERSION_NAME="${VERSION_NAME#v}"
+          [[ "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]] || exit 1
+          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "MAKERPRESS_KEYSTORE=$RUNNER_TEMP/makerpress-release.jks" >> "$GITHUB_ENV"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/makerpress-release.jks"
+          chmod 600 "$RUNNER_TEMP/makerpress-release.jks"
+          python scripts/check_release_version.py "$GITHUB_REPOSITORY" "$VERSION_CODE"
+      - name: Test and build signed APK
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest lintDebug assembleRelease --console=plain
+      - name: Verify signature and generate real release metadata
+        run: |
+          mkdir -p dist
+          APK="dist/MakerPress-v${VERSION_NAME}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          python scripts/release_manifest.py "$APK" "$GITHUB_REPOSITORY" "$VERSION_NAME" "$VERSION_CODE"
+      - name: Publish signed APK and manifest
+        run: |
+          gh release create "v${VERSION_NAME}" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "MakerPress ${VERSION_NAME}" --notes-file docs/CHANGELOG.md
+      - name: Keep build and test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: makerpress-release-results
+          path: |
+            dist/
+            app/build/reports/
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/makerpress-release.jks"
