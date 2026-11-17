@@ -14,7 +14,8 @@ manifest = {
     'apkUrl': f'https://github.com/{repository}/releases/download/v{version}/{file.name}',
     'sha256': hashlib.file_digest(file.open('rb'), 'sha256').hexdigest(),
     'sizeBytes': file.stat().st_size,
-    'changelog': [line.removeprefix('- ').strip() for line in pathlib.Path('docs/CHANGELOG.md').read_text(encoding='utf-8').splitlines() if line.startswith('- ')],
+    # Only the newest section: CHANGELOG keeps older releases below it.
+    'changelog': [line.removeprefix('- ').strip() for line in pathlib.Path('docs/CHANGELOG.md').read_text(encoding='utf-8').split('\n# ')[0].splitlines() if line.startswith('- ')],
 }
 file.with_name('latest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
 file.with_suffix('.apk.sha256').write_text(f"{manifest['sha256']}  {file.name}\n", encoding='ascii')
