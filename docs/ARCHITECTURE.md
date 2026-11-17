@@ -31,3 +31,12 @@ Referências de compatibilidade: [AGP 8.9 e Gradle 8.11.1](https://developer.and
 `PaperGameGenerator`, `StudyGenerator`, `KakoomaGenerator` and `DotGenerator` are seeded domain generators. New serialized PrintBlock variants are additive, preserving existing saved documents. `ActivityDrawing` renders vector diagrams and boards at native printer width; rendering never changes a seed. `AppSettings.language` has a backward-compatible PT-BR default, and the initial empty manifest address resolves to the public repository endpoint.
 
 Game batches snapshot the preview before suspension, save each random copy as an individual job, then advance the editor seed. History requeues the stored document. Settings and database schemas need no destructive migrations.
+
+## 1.2.0
+
+- `core/rendering/PrintKit`: shared drawing kit. `Texture` 1-bit patterns (with a −1/0/+1 tone from `PrinterProfile.tone`), `PixelArt` pixel buffer, metaball `blobMask`, `Glyphs` vector icons, legend, tracker, header and scorecard pieces. `PrintPiece` is the vertical slice type used by the renderer.
+- `core/rendering/GameArt`: maps for golf/galaxy/dungeon v2, course, maze, nonogram, bingo card and caller list, and the calibration strip. Maps render at the printer's native width so textures never get scaled.
+- `domain/PaperGames`: `generatorVersion = 2` boards. Golf, galaxy and dungeon generators, `GolfCourse`, and `GolfPar` value iteration. Version 1 levels keep the legacy `ActivityDrawing.game` renderer, so history reprints are unchanged.
+- `domain/ClassroomPuzzles`: maze, nonogram (with line solver), bingo and `ShareCode` (codes and daily seeds).
+- New `PrintBlock` variants: `Course`, `Maze`, `Nonogram`, `Bingo`. `Study`/`Kakooma` gain `compact` for class answer keys. All additions have defaults, so older JSON decodes unchanged and no database migration is needed.
+- `AppViewModel`: share codes (`openCode`, `daily`), class mode (`batch` plus key packing) and unique copies for every tool in `freshTools`.

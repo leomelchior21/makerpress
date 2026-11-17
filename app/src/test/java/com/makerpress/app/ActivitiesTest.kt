@@ -27,28 +27,60 @@ class ActivitiesTest {
             }
         }
     }
-    @Test fun levelsHaveReachableGoalsAndCrystalsAcrossSeeds() {
-        for(game in PaperGame.entries) for(difficulty in Difficulty.entries) for(seed in 0L..199L) {
-            val level = PaperGameGenerator.generate(game, difficulty, seed)
-            assertEquals(level, PaperGameGenerator.generate(game, difficulty, seed))
-            val visited = mutableSetOf(level.start); val todo = ArrayDeque<GridPoint>(); todo.add(level.start)
-            while(todo.isNotEmpty()) {
-                val p=todo.removeFirst()
-                for((dx,dy) in listOf(1 to 0,-1 to 0,0 to 1,0 to -1)) {
-                    val q=GridPoint(p.x+dx,p.y+dy)
-                    if(q.x !in 0 until level.columns || q.y !in 0 until level.rows) continue
-                    val cell=level.cells[q.y*level.columns+q.x]
-                    if((cell==0 || (game==PaperGame.GALAXY && cell==3)) && visited.add(q)) todo.add(q)
-                }
+    private fun reach(level: PaperLevel, from: GridPoint, passable: (Int) -> Boolean): Set<GridPoint> {
+        val visited = mutableSetOf(from); val todo = ArrayDeque(listOf(from))
+        while (todo.isNotEmpty()) {
+            val p = todo.removeFirst()
+            for ((dx, dy) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                val q = GridPoint(p.x + dx, p.y + dy)
+                if (q.x !in 0 until level.columns || q.y !in 0 until level.rows) continue
+                if (passable(level.cells[q.y * level.columns + q.x]) && visited.add(q)) todo.add(q)
             }
-            assertTrue(visited.contains(level.goal))
-            if(game==PaperGame.GALAXY) {
-                assertEquals(3,level.cells.count { it==3 })
-                level.cells.forEachIndexed { i,v -> if(v==3) assertTrue(GridPoint(i%level.columns,i/level.columns) in visited) }
-            }
-            assertEquals(level.rows*level.columns,level.cells.size)
         }
-        assertEquals(200,(0L..199L).map { PaperGameGenerator.generate(PaperGame.GOLF,Difficulty.MEDIUM,it).cells }.distinct().size)
+        return visited
+    }
+    @Test fun golfHolesArePlayableWithCalibratedPar() {
+        for (difficulty in Difficulty.entries) for (seed in 0L..39L) for (rows in PaperGameGenerator.golfLengths) {
+            val level = PaperGameGenerator.generate(PaperGame.GOLF, difficulty, seed, rows)
+            assertEquals(level, PaperGameGenerator.generate(PaperGame.GOLF, difficulty, seed, rows))
+            assertEquals(2, level.generatorVersion); assertEquals(rows, level.rows); assertEquals(rows * level.columns, level.cells.size)
+            assertEquals(GolfCell.FAIRWAY, level.cells[level.start.y * level.columns + level.start.x])
+            assertEquals(GolfCell.GREEN, level.cells[level.goal.y * level.columns + level.goal.x])
+            assertTrue("seed $seed: ${level.expected}", level.expected in 1.5..24.9)
+            assertTrue(kotlin.math.abs(kotlin.math.max(2, kotlin.math.round(level.expected).toInt()) - level.target) <= 1)
+            assertTrue(level.cells.any { it == GolfCell.FAIRWAY } && level.cells.count { it == GolfCell.GREEN } >= 5)
+        }
+        assertEquals(100, (0L..99L).map { PaperGameGenerator.generate(PaperGame.GOLF, Difficulty.MEDIUM, it).cells }.distinct().size)
+        // Longer holes need more strokes on average.
+        val pars = PaperGameGenerator.golfLengths.map { rows -> (0L..19L).map { PaperGameGenerator.generate(PaperGame.GOLF, Difficulty.MEDIUM, it, rows).expected }.average() }
+        assertTrue(pars.toString(), pars[0] < pars[1] && pars[1] < pars[2])
+    }
+    @Test fun galaxyAndDungeonAreSolvable() {
+        for (difficulty in Difficulty.entries) for (seed in 0L..149L) {
+            val galaxy = PaperGameGenerator.generate(PaperGame.GALAXY, difficulty, seed)
+            assertEquals(galaxy, PaperGameGenerator.generate(PaperGame.GALAXY, difficulty, seed))
+            val open = reach(galaxy, galaxy.start) { it != GalaxyCell.ASTEROID && it != GalaxyCell.ENEMY }
+            assertTrue(galaxy.goal in open)
+            assertEquals(3, galaxy.cells.count { it == GalaxyCell.CRYSTAL })
+            galaxy.cells.forEachIndexed { i, v -> if (v == GalaxyCell.CRYSTAL) assertTrue(GridPoint(i % galaxy.columns, i / galaxy.columns) in open) }
+            assertTrue(galaxy.target in 4..30)
+
+            val dungeon = PaperGameGenerator.generate(PaperGame.DUNGEON, difficulty, seed)
+            assertEquals(dungeon, PaperGameGenerator.generate(PaperGame.DUNGEON, difficulty, seed))
+            assertEquals(1, dungeon.cells.count { it == DungeonCell.KEY }); assertEquals(1, dungeon.cells.count { it == DungeonCell.DOOR })
+            val closed = reach(dungeon, dungeon.start) { it != DungeonCell.WALL && it != DungeonCell.DOOR }
+            val keyAt = dungeon.cells.indexOf(DungeonCell.KEY)
+            assertTrue("key reachable before the door", GridPoint(keyAt % dungeon.columns, keyAt / dungeon.columns) in closed)
+            assertFalse("the door guards the stairs", dungeon.goal in closed)
+            assertTrue(dungeon.goal in reach(dungeon, dungeon.start) { it != DungeonCell.WALL })
+            dungeon.cells.forEachIndexed { i, v -> if (v == DungeonCell.MONSTER) assertTrue(dungeon.values[i] in 2..6) }
+            assertEquals(dungeon.target, dungeon.cells.count { it == DungeonCell.CHEST })
+        }
+    }
+    @Test fun legacyLevelsStillDecode() {
+        val legacy = """{"game":"GOLF","seed":5,"difficulty":"MEDIUM","columns":2,"rows":2,"cells":[0,1,2,3],"route":[],"start":{"x":0,"y":1},"goal":{"x":0,"y":0},"target":8}"""
+        val level = DocumentJson.decodeFromString<PaperLevel>(legacy)
+        assertEquals(1, level.generatorVersion); assertEquals(emptyList<Int>(), level.values)
     }
     @Test fun graphEquationsAndMarkedRootsAreConsistent() {
         for(seed in 0L..99L) for(topic in listOf(StudyTopic.LINEAR,StudyTopic.QUADRATIC)) {

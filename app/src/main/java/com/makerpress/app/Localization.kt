@@ -233,6 +233,55 @@ Não foi possível verificar: |Could not check:[space]
 APK verificado. Pronto para instalar pelo Android.|APK verified. Ready for Android installation.
 Download cancelado.|Download cancelled.
 Atualização rejeitada: |Update rejected:[space]
+Jogos de papel|Paper games
+Quebra-cabeças|Puzzles
+Sala de aula|Classroom
+Estúdio|Studio
+Monstros, chaves e tesouros|Monsters, keys and treasure
+Labirintos com estrelas escondidas|Mazes with hidden stars
+Pinte e descubra a figura|Fill in squares, reveal a picture
+Cartelas únicas para a turma|Unique cards for the class
+Desafio do dia|Daily challenge
+Desafio do dia ✓|Daily challenge ✓
+O mesmo mapa para todo mundo hoje. Compare pontos com a turma.|The same map for everyone today. Compare scores with the class.
+Tenho um código|I have a code
+Imprima o mesmo mapa de um amigo|Print the same map as a friend
+Um mapa novo por dia, igual para todos|A new map each day, the same for everyone
+Digite o código impresso no papel, por exemplo GM0-7K2QX9.|Type the code printed on the paper, for example GM0-7K2QX9.
+Código|Code
+Modo|Mode
+1 buraco|1 hole
+Campo · |Course ·[space]
+Comprimento|Length
+Curto|Short
+Longo|Long
+Jogadores no cartão|Players on the scorecard
+O par é calculado com as chances reais do dado. A legenda no papel explica cada textura.|Par is calculated from the real dice odds. The key on the paper explains every texture.
+Estrelas para coletar|Stars to collect
+Novo labirinto a cada impressão|New maze with each print
+Labirinto perfeito: existe um único caminho entre a entrada e a saída. O gabarito mostra o caminho.|Perfect maze: exactly one path joins the entrance and the exit. The answer key shows it.
+Fácil: 10 × 10 com dicas. Médio: 10 × 10. Difícil: 15 × 15. Toda figura tem uma única solução, sem chute.|Easy: 10 × 10 with hints. Medium: 10 × 10. Hard: 15 × 15. Every picture has one solution, no guessing.
+Nova figura a cada impressão|New picture with each print
+Cartela diferente em cada cópia|A different card in each copy
+Na prévia, use Modo turma para imprimir uma cartela por aluno e a lista do chamador. Com 24 palavras ou mais a cartela é 5 × 5; com 9 a 23, é 3 × 3.|In the preview, use Class mode to print one card per student plus the caller list. With 24 or more words the card is 5 × 5; with 9 to 23 it is 3 × 3.
+Ajustar à tela|Fit to screen
+Tamanho real|Actual size
+Ampliar 2×|Zoom 2×
+Mostrar cartela|Show card
+Lista do chamador|Caller list
+Modo turma|Class mode
+Uma cartela diferente para cada aluno, numerada.|A different, numbered card for each student.
+Uma folha diferente para cada aluno, numerada. Ninguém copia do colega.|A different, numbered sheet for each student. Nobody can copy a neighbour.
+Alunos|Students
+Gabarito da turma, por número|Class answer key, by number
+Calibrar texturas dos mapas|Calibrate map textures
+Texturas dos mapas|Map textures
+Mais claras|Lighter
+Normais|Normal
+Mais escuras|Darker
+Imprima Calibrar texturas dos mapas no Printer Lab e escolha a linha mais nítida.|Print Calibrate map textures in Printer Lab and pick the clearest row.
+Código copiado.|Code copied.
+Código inválido. Confira as letras e os números.|Invalid code. Check the letters and numbers.
 """.trimIndent().lines().map { it.replace("[space]", " ") }.filter { it.contains('|') }.associate { it.substringBefore('|') to it.substringAfter('|') }
     fun translate(value: String, language: AppLanguage): String {
         if(language == AppLanguage.PT_BR) return value

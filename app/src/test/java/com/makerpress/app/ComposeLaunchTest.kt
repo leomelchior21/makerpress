@@ -34,7 +34,7 @@ class ComposeLaunchTest {
     }
     @Test fun launchesAllToolsAndNavigatesTabs() {
         compose.onNodeWithText("Create. Print. Play.").assertExists()
-        for (name in listOf("Text Studio", "Image Studio", "Sudoku", "Word Search", "QR Studio", "Math Challenges", "Golf", "Galaxy", "Kakooma", "Connect the Dots")) {
+        for (name in listOf("Text Studio", "Image Studio", "Sudoku", "Word Search", "QR Studio", "Math Challenges", "Golf", "Galaxy", "Kakooma", "Connect the Dots", "Dungeon", "Maze", "Nonogram", "Bingo")) {
             compose.onNode(hasText(name) and hasClickAction()).performScrollTo().performClick()
             compose.onNodeWithText("Visualizar impressão").assertExists()
             compose.onNodeWithContentDescription("Voltar").performClick()
@@ -49,7 +49,7 @@ class ComposeLaunchTest {
     @Test fun textPreviewAndSaveReachHistory() {
         val key = compose.activity.viewModelStore.keys().single { it.endsWith("AppViewModel") }
         val vm = androidx.lifecycle.ViewModelProvider(compose.activity)[key, AppViewModel::class.java]
-        compose.onNodeWithText("Text Studio").performClick()
+        compose.onNodeWithText("Text Studio").performScrollTo().performClick()
         compose.onNode(hasSetTextAction() and hasText("Seu texto")).performTextInput("Olá MakerPress! Ação e criação.")
         compose.onNodeWithText("Visualizar impressão").performScrollTo().performClick()
         compose.waitUntil(15000) { compose.onAllNodesWithContentDescription("Saída monocromática exata").fetchSemanticsNodes().isNotEmpty() }
@@ -73,6 +73,24 @@ class ComposeLaunchTest {
         compose.waitUntil(15000) { compose.onAllNodesWithText("Show questions").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("EN / PT-BR").performClick()
         compose.waitUntil(15000) { compose.onAllNodesWithText("PT-BR / EN").fetchSemanticsNodes().isNotEmpty() }
+    }
+    @Test fun shareCodeAndClassModeQueueSheets() {
+        val key = compose.activity.viewModelStore.keys().single { it.endsWith("AppViewModel") }
+        val vm = androidx.lifecycle.ViewModelProvider(compose.activity)[key, AppViewModel::class.java]
+        compose.runOnIdle { org.junit.Assert.assertTrue(vm.openCode("lm1-00abcd")) }
+        compose.waitUntil(15000) { compose.waitForIdle(); vm.preview?.blocks?.any { it is com.makerpress.app.domain.PrintBlock.Maze } == true && !vm.busy }
+        val maze = vm.preview!!.blocks.filterIsInstance<com.makerpress.app.domain.PrintBlock.Maze>().single().puzzle
+        org.junit.Assert.assertEquals(com.makerpress.app.domain.ShareCode.decode("LM1-00ABCD")!!.seed, maze.seed)
+        org.junit.Assert.assertTrue(maze.stars.isNotEmpty())
+        org.junit.Assert.assertTrue(vm.preview!!.blocks.any { it is com.makerpress.app.domain.PrintBlock.Text && it.value.contains("LM1-00ABCD") })
+        val before = vm.jobs.value.size
+        compose.runOnIdle { vm.batch(10, true) }
+        try { compose.waitUntil(30000) { compose.waitForIdle(); vm.jobs.value.size >= before + 11 && !vm.busy } }
+        catch (e: Throwable) { throw AssertionError("jobs=${vm.jobs.value.size} before=$before busy=${vm.busy} message=${vm.message}", e) }
+        val docs = vm.jobs.value.take(11).map { vm.app.jobs.document(it) }
+        val sheets = docs.filter { d -> d.blocks.any { it is com.makerpress.app.domain.PrintBlock.Maze && !it.answers } }
+        org.junit.Assert.assertEquals(10, sheets.map { d -> d.blocks.filterIsInstance<com.makerpress.app.domain.PrintBlock.Maze>().single().puzzle.seed }.distinct().size)
+        org.junit.Assert.assertTrue(docs.any { d -> d.blocks.any { it is com.makerpress.app.domain.PrintBlock.Maze && it.answers } })
     }
     @Test fun gameCopiesAreUniqueAndHistoryReprintsAreFrozen() {
         val key = compose.activity.viewModelStore.keys().single { it.endsWith("AppViewModel") }

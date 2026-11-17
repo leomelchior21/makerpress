@@ -56,18 +56,27 @@ class MainActivity : ComponentActivity() {
 
 private val Ink = Color(0xff181818)
 private val Lime = Color(0xffc6f36b)
-private val tools = listOf(
-    Triple("Text Studio", "Notas, bilhetes e missões", Icons.Outlined.TextFields),
-    Triple("Image Studio", "Sua galeria em papel", Icons.Outlined.Image),
-    Triple("Sudoku", "Um pequeno desafio lógico", Icons.Outlined.GridOn),
-    Triple("Word Search", "Palavras para descobrir", Icons.Outlined.Search),
-    Triple("QR Studio", "Conecte papel e ideias", Icons.Outlined.QrCode2),
-    Triple("Math Challenges", "Matemática e física com diagramas", Icons.Outlined.Calculate),
-    Triple("Golf", "Um novo campo em cada impressão", Icons.Outlined.GridOn),
-    Triple("Galaxy", "Trace sua missão entre as estrelas", Icons.Outlined.GridOn),
-    Triple("Kakooma", "Descubra a soma escondida", Icons.Outlined.Calculate),
-    Triple("Connect the Dots", "Ponto a ponto, uma surpresa", Icons.Outlined.Image)
+private val toolGroups = listOf(
+    "Jogos de papel" to listOf(
+        Triple("Golf", "Um novo campo em cada impressão", Icons.Outlined.GolfCourse),
+        Triple("Galaxy", "Trace sua missão entre as estrelas", Icons.Outlined.RocketLaunch),
+        Triple("Dungeon", "Monstros, chaves e tesouros", Icons.Outlined.Castle),
+        Triple("Maze", "Labirintos com estrelas escondidas", Icons.Outlined.Maze)),
+    "Quebra-cabeças" to listOf(
+        Triple("Sudoku", "Um pequeno desafio lógico", Icons.Outlined.GridOn),
+        Triple("Nonogram", "Pinte e descubra a figura", Icons.Outlined.Mosaic),
+        Triple("Kakooma", "Descubra a soma escondida", Icons.Outlined.Calculate),
+        Triple("Word Search", "Palavras para descobrir", Icons.Outlined.Search),
+        Triple("Connect the Dots", "Ponto a ponto, uma surpresa", Icons.Outlined.Image)),
+    "Sala de aula" to listOf(
+        Triple("Math Challenges", "Matemática e física com diagramas", Icons.Outlined.Calculate),
+        Triple("Bingo", "Cartelas únicas para a turma", Icons.Outlined.Ball)),
+    "Estúdio" to listOf(
+        Triple("Text Studio", "Notas, bilhetes e missões", Icons.Outlined.TextFields),
+        Triple("Image Studio", "Sua galeria em papel", Icons.Outlined.Image),
+        Triple("QR Studio", "Conecte papel e ideias", Icons.Outlined.QrCode2))
 )
+private val batchTools = setOf("Math Challenges", "Sudoku", "Kakooma", "Connect the Dots", "Word Search", "Maze", "Nonogram", "Bingo", "Golf", "Galaxy", "Dungeon")
 @Composable private fun MakerPress(vm: AppViewModel, updates: UpdateViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val connection by vm.connection.collectAsStateWithLifecycle()
@@ -139,23 +148,57 @@ private fun connectionText(state: PrinterConnectionState) = when (state) {
 @Composable private fun HomeScreen(vm: AppViewModel, jobs: List<PrintJob>, connection: PrinterConnectionState, update: Boolean) = Page {
     AssistChip(onClick = { vm.tab = 2 }, label = { UiText(connectionText(connection)) }, leadingIcon = { Icon(Icons.Outlined.Bluetooth, null, Modifier.size(18.dp)) })
     if (update) Card(onClick = { vm.tab = 3 }) { UiText("Nova versão disponível →", Modifier.padding(16.dp)) }
+    var codeDialog by remember { mutableStateOf(false) }
+    var dailyDialog by remember { mutableStateOf(false) }
+    if (codeDialog) CodeDialog(vm) { codeDialog = false }
+    if (dailyDialog) AlertDialog(onDismissRequest = { dailyDialog = false }, title = { UiText("Desafio do dia") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            UiText("O mesmo mapa para todo mundo hoje. Compare pontos com a turma.", style = MaterialTheme.typography.bodySmall)
+            dailyTools.forEach { tool -> OutlinedButton(onClick = { dailyDialog = false; vm.daily(tool) }, modifier = Modifier.fillMaxWidth()) { UiText(tool) } }
+        } }, confirmButton = { TextButton(onClick = { dailyDialog = false }) { UiText("Voltar") } })
     UiText("Uma ideia.\nUm pedacinho de papel.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-    UiText("O que vamos criar hoje?", color = MaterialTheme.colorScheme.onSurfaceVariant)
-    tools.chunked(2).forEach { row ->
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            row.forEach { (name, subtitle, icon) ->
-                Card(onClick = { vm.openTool(name) }, modifier = Modifier.weight(1f).heightIn(min = 168.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Surface(shape = RoundedCornerShape(12.dp), color = Lime) { Icon(icon, null, Modifier.padding(9.dp).size(24.dp), tint = Ink) }
-                        UiText(name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        UiText(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        QuickCard("Tenho um código", "Imprima o mesmo mapa de um amigo", Icons.Outlined.Tag, Modifier.weight(1f)) { codeDialog = true }
+        QuickCard("Desafio do dia", "Um mapa novo por dia, igual para todos", Icons.Outlined.Today, Modifier.weight(1f)) { dailyDialog = true }
+    }
+    toolGroups.forEach { (group, tools) ->
+        UiText(group, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, modifier = Modifier.padding(top = 8.dp))
+        tools.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { (name, subtitle, icon) ->
+                    Card(onClick = { vm.openTool(name) }, modifier = Modifier.weight(1f).heightIn(min = 150.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Surface(shape = RoundedCornerShape(12.dp), color = Lime) { Icon(icon, null, Modifier.padding(9.dp).size(24.dp), tint = Ink) }
+                            UiText(name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                            UiText(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
     jobs.firstOrNull()?.let { job -> Section("Última criação") { UiText(job.title); TextButton(onClick = { vm.openJob(job) }) { UiText("Abrir criação →") } } }
     OutlinedButton(onClick = { vm.lab("HELLO") }, modifier = Modifier.fillMaxWidth()) { UiText("Impressão de teste") }
+}
+@Composable private fun QuickCard(title: String, subtitle: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+    Card(onClick = onClick, modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(icon, null, Modifier.size(22.dp))
+            UiText(title, fontWeight = FontWeight.Bold)
+            UiText(subtitle, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+@Composable private fun CodeDialog(vm: AppViewModel, close: () -> Unit) {
+    var code by remember { mutableStateOf("") }
+    AlertDialog(onDismissRequest = close, title = { UiText("Tenho um código") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            UiText("Digite o código impresso no papel, por exemplo GM0-7K2QX9.", style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(code, { code = it.uppercase().take(12) }, Modifier.fillMaxWidth(), singleLine = true, label = { UiText("Código") })
+        } },
+        confirmButton = { TextButton(onClick = { if (vm.openCode(code)) close() }, enabled = code.count { it.isLetterOrDigit() } == 9) { UiText("Abrir") } },
+        dismissButton = { TextButton(onClick = close) { UiText("Voltar") } })
 }
 @OptIn(ExperimentalLayoutApi::class)
 @Composable private fun <T> Choices(label: String, values: List<T>, selected: T, name: (T) -> String = { it.toString() }, choose: (T) -> Unit) {
@@ -216,6 +259,7 @@ private fun connectionText(state: PrinterConnectionState) = when (state) {
             "Sudoku" -> {
                 Choices("Grade", listOf(4, 9), e.size, { "$it × $it" }) { change(e.copy(size = it)) }
                 DifficultyPicker(e, change)
+                DailyButton(vm, e)
                 UiText("Uma única solução. A dificuldade usa pistas e cobertura por singles; não representa uma classificação humana garantida.", style = MaterialTheme.typography.bodySmall)
             }
             "Word Search" -> {
@@ -249,11 +293,37 @@ private fun connectionText(state: PrinterConnectionState) = when (state) {
                 DifficultyPicker(e, change)
                 UiText("A dificuldade controla a quantidade de pontos. Ligue os números em ordem e feche o desenho. O gabarito revela a figura.")
             }
-            "Golf", "Galaxy" -> {
+            "Golf", "Galaxy", "Dungeon" -> {
+                if (e.tool == "Golf") {
+                    Choices("Modo", listOf(1, 3, 6, 9), e.holes, { if (it == 1) "1 buraco" else "Campo · $it" }) { change(e.copy(holes = it)) }
+                    if (e.holes == 1) Choices("Comprimento", PaperGameGenerator.golfLengths, e.length, { listOf("Curto", "Médio", "Longo")[PaperGameGenerator.golfLengths.indexOf(it)] }) { change(e.copy(length = it)) }
+                    else Choices("Jogadores no cartão", listOf(1, 2, 3, 4), e.players) { change(e.copy(players = it)) }
+                    UiText("O par é calculado com as chances reais do dado. A legenda no papel explica cada textura.", style = MaterialTheme.typography.bodySmall)
+                }
                 DifficultyPicker(e, change)
                 Toggle("Novo nível a cada impressão", e.freshGames) { change(e.copy(freshGames = it)) }
                 UiText("A prévia é a primeira impressão. Cópias extras recebem novos níveis. O histórico permite repetir o mesmo nível.")
-                UiText(PaperGameGenerator.rules(if(e.tool == "Golf") PaperGame.GOLF else PaperGame.GALAXY, e.language))
+                DailyButton(vm, e)
+                UiText(PaperGameGenerator.rules(when (e.tool) { "Golf" -> PaperGame.GOLF; "Galaxy" -> PaperGame.GALAXY; else -> PaperGame.DUNGEON }, e.language))
+            }
+            "Maze" -> {
+                DifficultyPicker(e, change)
+                Toggle("Estrelas para coletar", e.treasures) { change(e.copy(treasures = it)) }
+                Toggle("Novo labirinto a cada impressão", e.freshGames) { change(e.copy(freshGames = it)) }
+                UiText("Labirinto perfeito: existe um único caminho entre a entrada e a saída. O gabarito mostra o caminho.", style = MaterialTheme.typography.bodySmall)
+                DailyButton(vm, e)
+            }
+            "Nonogram" -> {
+                DifficultyPicker(e, change)
+                UiText("Fácil: 10 × 10 com dicas. Médio: 10 × 10. Difícil: 15 × 15. Toda figura tem uma única solução, sem chute.", style = MaterialTheme.typography.bodySmall)
+                Toggle("Nova figura a cada impressão", e.freshGames) { change(e.copy(freshGames = it)) }
+                DailyButton(vm, e)
+            }
+            "Bingo" -> {
+                Choices("Tema", BingoTheme.entries, e.bingoTheme, { it.label(e.language) }) { change(e.copy(bingoTheme = it)) }
+                if (e.bingoTheme == BingoTheme.WORDS) Field("Palavras separadas por vírgula", e.bingoWords, 4) { change(e.copy(bingoWords = it.take(2000))) }
+                Toggle("Cartela diferente em cada cópia", e.freshGames) { change(e.copy(freshGames = it)) }
+                UiText("Na prévia, use Modo turma para imprimir uma cartela por aluno e a lista do chamador. Com 24 palavras ou mais a cartela é 5 × 5; com 9 a 23, é 3 × 3.", style = MaterialTheme.typography.bodySmall)
             }
             "Math Challenges" -> {
                 Choices("Conteúdo", StudyTopic.entries, e.topic, { it.label(e.language) }) { change(e.copy(topic = it)) }
@@ -266,6 +336,9 @@ private fun connectionText(state: PrinterConnectionState) = when (state) {
         }
         Button(onClick = { vm.generate() }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth().height(54.dp)) { Icon(Icons.Outlined.Visibility, null); Spacer(Modifier.width(8.dp)); UiText("Visualizar impressão") }
     }
+}
+@Composable private fun DailyButton(vm: AppViewModel, e: EditorState) {
+    OutlinedButton(onClick = { vm.daily() }, enabled = !vm.busy) { Icon(Icons.Outlined.Today, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); UiText(if (e.daily) "Desafio do dia ✓" else "Desafio do dia") }
 }
 @Composable private fun LiveImagePreview(vm: AppViewModel, e: EditorState) {
     var image by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -284,16 +357,40 @@ private fun connectionText(state: PrinterConnectionState) = when (state) {
 }
 @Composable private fun PreviewScreen(vm: AppViewModel, connection: PrinterConnectionState) {
     val doc = vm.preview ?: return
-    val hasAnswers = doc.blocks.any { it is PrintBlock.Sudoku || it is PrintBlock.WordSearch || it is PrintBlock.Math || it is PrintBlock.Study || it is PrintBlock.Kakooma || it is PrintBlock.Dots }
-    val isAnswer = doc.blocks.any { (it is PrintBlock.Sudoku && it.answers) || (it is PrintBlock.WordSearch && it.answers) || (it is PrintBlock.Math && it.answers) || (it is PrintBlock.Study && it.answers) || (it is PrintBlock.Kakooma && it.answers) || (it is PrintBlock.Dots && it.answers) }
+    val hasAnswers = doc.blocks.any { it.hasAnswers() }
+    val isAnswer = doc.blocks.any { it.showsAnswers() }
+    val isBingo = doc.blocks.any { it is PrintBlock.Bingo }
+    val l = LocalAppLanguage.current
+    var zoom by remember { mutableIntStateOf(0) }
+    var classMode by remember { mutableStateOf(false) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val code = doc.blocks.filterIsInstance<PrintBlock.Text>().firstNotNullOfOrNull { Regex("(?:Código|Code) ([A-Z0-9]{3}-[A-Z0-9]{6})").find(it.value)?.groupValues?.get(1) }
+    if (classMode) ClassModeDialog(vm, hasAnswers, isBingo) { classMode = false }
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             UiText(if (isAnswer) "GABARITO · impressão separada" else "PRÉVIA TÉRMICA · ${vm.previewProfile.width} pontos", style = MaterialTheme.typography.labelMedium)
-            vm.bitmap?.let { Image(it.asImageBitmap(), ui("Saída monocromática exata"), Modifier.fillMaxWidth().aspectRatio(it.width.toFloat() / it.height).background(Color.White)) }
-            if (hasAnswers) OutlinedButton(onClick = { vm.answerKey() }) { UiText(if (isAnswer) "Mostrar questões" else "Mostrar gabarito") }
-            if (doc.blocks.none { it is PrintBlock.Pattern }) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            vm.bitmap?.let { bmp ->
+                val metrics = androidx.compose.ui.platform.LocalContext.current.resources.displayMetrics
+                val realWidth = with(androidx.compose.ui.platform.LocalDensity.current) { (bmp.width / 8f * metrics.xdpi / 25.4f).toDp() }
+                Text(l.text("%d × %d mm · cerca de %.1f cm de papel", "%d × %d mm · about %.1f cm of paper").format(bmp.width / 8, bmp.height / 8, bmp.height / 80f), style = MaterialTheme.typography.bodySmall)
+                Choices("Tamanho", listOf(0, 1, 2), zoom, { listOf("Ajustar à tela", "Tamanho real", "Ampliar 2×")[it] }) { zoom = it }
+                Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                    val size = when (zoom) { 1 -> Modifier.width(realWidth); 2 -> Modifier.width(realWidth * 2); else -> Modifier.fillMaxWidth() }
+                    Image(bmp.asImageBitmap(), ui("Saída monocromática exata"), size.aspectRatio(bmp.width.toFloat() / bmp.height).background(Color.White),
+                        filterQuality = androidx.compose.ui.graphics.FilterQuality.None)
+                }
+            }
+            if (code != null) AssistChip(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(code)); vm.message = "Código copiado." },
+                label = { Text(l.text("Código $code · copiar", "Code $code · copy")) }, leadingIcon = { Icon(Icons.Outlined.Tag, null, Modifier.size(18.dp)) })
+            if (hasAnswers) OutlinedButton(onClick = { vm.answerKey() }) { UiText(if (isBingo) (if (isAnswer) "Mostrar cartela" else "Lista do chamador") else if (isAnswer) "Mostrar questões" else "Mostrar gabarito") }
+            if (doc.blocks.none { it is PrintBlock.Pattern }) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { vm.editCurrent() }) { UiText("Editar") }
-                if ((hasAnswers || doc.blocks.any { it is PrintBlock.Game }) && vm.editor != null) TextButton(onClick = { vm.generate(true) }) { UiText("Gerar novo") }
+                if (vm.editor != null && (hasAnswers || doc.blocks.any { it is PrintBlock.Game || it is PrintBlock.Course })) FilledTonalButton(onClick = { vm.generate(true) }, enabled = !vm.busy) {
+                    Icon(Icons.Outlined.Casino, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); UiText("Gerar novo")
+                }
+            }
+            if (vm.editor?.tool in batchTools && !isAnswer) OutlinedButton(onClick = { classMode = true }, enabled = !vm.busy) {
+                Icon(Icons.Outlined.Groups, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); UiText("Modo turma")
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { vm.save(false) }, enabled = !vm.busy) { UiText("Salvar") }
@@ -312,6 +409,18 @@ private fun connectionText(state: PrinterConnectionState) = when (state) {
             }
         }
     }
+}
+@Composable private fun ClassModeDialog(vm: AppViewModel, hasAnswers: Boolean, isBingo: Boolean, close: () -> Unit) {
+    var count by remember { mutableIntStateOf(30) }
+    var key by remember { mutableStateOf(hasAnswers) }
+    AlertDialog(onDismissRequest = close, title = { UiText("Modo turma") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            UiText(if (isBingo) "Uma cartela diferente para cada aluno, numerada." else "Uma folha diferente para cada aluno, numerada. Ninguém copia do colega.", style = MaterialTheme.typography.bodySmall)
+            Choices("Alunos", listOf(10, 15, 20, 25, 30, 35, 40), count) { count = it }
+            if (hasAnswers) Toggle(if (isBingo) "Lista do chamador" else "Gabarito da turma, por número", key) { key = it }
+        } },
+        confirmButton = { TextButton(onClick = { vm.batch(count, key); close() }) { UiText("Adicionar à fila") } },
+        dismissButton = { TextButton(onClick = close) { UiText("Voltar") } })
 }
 private fun statusName(state: String) = mapOf("SAVED" to "Salvo", "PENDING" to "Pendente", "RENDERING" to "Renderizando", "SENDING" to "Enviando", "SENT" to "Bytes enviados", "FAILED" to "Falhou", "CANCELLED" to "Cancelado", "UNKNOWN" to "Resultado desconhecido")[state] ?: state
 @Composable private fun QueueScreen(vm: AppViewModel, jobs: List<PrintJob>) {
@@ -361,7 +470,7 @@ private fun statusName(state: String) = mapOf("SAVED" to "Salvo", "PENDING" to "
         }
         Section("Printer Lab") {
             UiText("KP-1025: 384 pontos e ESC/POS são hipóteses. Conectar → enviar bytes → conferir fisicamente o papel.")
-            listOf("HELLO" to "HELLO MAKERPRESS", "RASTER" to "Escala de cinza / raster", "QR" to "QR de teste", "GRID" to "Grade de teste", "WIDTH" to "Largura imprimível").forEach { (kind, label) -> OutlinedButton(onClick = { vm.lab(kind) }, modifier = Modifier.fillMaxWidth()) { UiText(label) } }
+            listOf("HELLO" to "HELLO MAKERPRESS", "DENSITY" to "Calibrar texturas dos mapas", "RASTER" to "Escala de cinza / raster", "QR" to "QR de teste", "GRID" to "Grade de teste", "WIDTH" to "Largura imprimível").forEach { (kind, label) -> OutlinedButton(onClick = { vm.lab(kind) }, modifier = Modifier.fillMaxWidth()) { UiText(label) } }
             TextButton(onClick = { vm.app.printer.log("Usuário confirmou visualmente uma impressão no papel."); vm.message = "Confirmação visual registrada pelo usuário." }) { UiText("Confirmar impressão vista no papel") }
             TextButton(onClick = { exportLogs(context, vm) }) { UiText("Exportar diagnóstico") }
         }
@@ -375,6 +484,7 @@ private fun statusName(state: String) = mapOf("SAVED" to "Salvo", "PENDING" to "
     var mode by remember(settings.profile) { mutableStateOf(settings.profile.mode) }
     var feed by remember(settings.profile) { mutableFloatStateOf(settings.profile.feed.toFloat()) }
     var margin by remember(settings.profile) { mutableFloatStateOf(settings.profile.margin.toFloat()) }
+    var tone by remember(settings.profile) { mutableIntStateOf(settings.profile.tone) }
     Section("Perfil de impressão") {
         Field("Largura em pontos (múltiplo de 8)", width) { width = it }
         Choices("Comando de imagem", RasterMode.entries, mode, { if (it == RasterMode.GS_V_0) "GS v 0" else "ESC *" }) { mode = it }
@@ -383,8 +493,10 @@ private fun statusName(state: String) = mapOf("SAVED" to "Salvo", "PENDING" to "
         Field("Pausa entre blocos · 0–500 ms", delay) { delay = it }
         Range("Avanço final: ${feed.toInt()} linhas", feed, 0f..10f) { feed = it }
         Range("Margens: ${margin.toInt()} pontos", margin, 0f..32f) { margin = it }
+        Choices("Texturas dos mapas", listOf(-1, 0, 1), tone, { listOf("Mais claras", "Normais", "Mais escuras")[it + 1] }) { tone = it }
+        UiText("Imprima Calibrar texturas dos mapas no Printer Lab e escolha a linha mais nítida.", style = MaterialTheme.typography.bodySmall)
         Button(onClick = {
-            val p = PrinterProfile(width.toIntOrNull() ?: 0, chunk.toIntOrNull() ?: 0, delay.toLongOrNull() ?: -1, feed.toInt(), margin.toInt(), mode)
+            val p = PrinterProfile(width.toIntOrNull() ?: 0, chunk.toIntOrNull() ?: 0, delay.toLongOrNull() ?: -1, feed.toInt(), margin.toInt(), mode, tone)
             vm.updateSettings { p.validate(); it.copy(profile = p) }
         }) { UiText("Salvar perfil") }
     }

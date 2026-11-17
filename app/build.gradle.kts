@@ -12,8 +12,8 @@ android {
         applicationId = "com.makerpress.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = providers.environmentVariable("VERSION_CODE").orNull?.toInt() ?: 2
-        versionName = providers.environmentVariable("VERSION_NAME").orNull ?: "1.1.0"
+        versionCode = providers.environmentVariable("VERSION_CODE").orNull?.toInt() ?: 3
+        versionName = providers.environmentVariable("VERSION_NAME").orNull ?: "1.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {

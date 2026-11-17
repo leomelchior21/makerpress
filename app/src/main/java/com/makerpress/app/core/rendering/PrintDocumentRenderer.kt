@@ -13,19 +13,19 @@ import java.io.File
 import kotlin.math.min
 
 class PrintDocumentRenderer(private val context: Context) {
-    private data class Piece(val height: Int, val draw: (Canvas, Float) -> Unit)
+    private fun Piece(height: Int, draw: (Canvas, Float) -> Unit) = PrintPiece(height, draw)
     fun render(document: PrintDocument, profile: PrinterProfile): Bitmap {
         profile.validate()
         val width = profile.width - 2 * profile.margin
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
-        fun text(value: String, size: Float = 24f, bold: Boolean = false, alignment: Alignment = Alignment.LEFT, spacing: Int = 8): Piece {
+        fun text(value: String, size: Float = 24f, bold: Boolean = false, alignment: Alignment = Alignment.LEFT, spacing: Int = 8): PrintPiece {
             val tp = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; textSize = size; typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT }
             val layout = StaticLayout.Builder.obtain(value, 0, value.length, tp, width)
                 .setAlignment(when (alignment) { Alignment.LEFT -> Layout.Alignment.ALIGN_NORMAL; Alignment.CENTER -> Layout.Alignment.ALIGN_CENTER; Alignment.RIGHT -> Layout.Alignment.ALIGN_OPPOSITE })
                 .setIncludePad(true).build()
             return Piece(layout.height + spacing) { c, y -> c.save(); c.translate(profile.margin.toFloat(), y); layout.draw(c); c.restore() }
         }
-        fun grid(size: Int, values: List<String>, sudoku: Boolean, marks: List<WordPlacement> = emptyList()): Piece {
+        fun grid(size: Int, values: List<String>, sudoku: Boolean, marks: List<WordPlacement> = emptyList()): PrintPiece {
             val cell = (width - 4).toFloat() / size; val extent = cell * size
             return Piece(extent.toInt() + 16) { c, y ->
                 val x = profile.margin + 2f; val top = y + 2
@@ -49,12 +49,15 @@ class PrintDocumentRenderer(private val context: Context) {
                 paint.style = Paint.Style.FILL; paint.textAlign = Paint.Align.LEFT
             }
         }
-        val pieces = mutableListOf<Piece>()
-        fun drawing(height: Int, draw: (Canvas) -> Unit): Piece = Piece((height * width / 360f).toInt() + 12) { c, y ->
+        val pieces = mutableListOf<PrintPiece>()
+        val tone = profile.tone
+        fun drawing(height: Int, draw: (Canvas) -> Unit): PrintPiece = Piece((height * width / 360f).toInt() + 12) { c, y ->
             c.save(); c.translate(profile.margin.toFloat(), y); c.scale(width / 360f, width / 360f); draw(c); c.restore()
         }
         for (block in document.blocks) when (block) {
-            is PrintBlock.Kakooma -> {
+            is PrintBlock.Kakooma -> if (block.compact) {
+                pieces += text(block.puzzle.groups.mapIndexed { i, g -> "${i + 1}) ${g.first} + ${g.second} = ${g.sum}" }.joinToString("   "), 15f)
+            } else {
                 val l=block.puzzle.language
                 pieces += text(l.text("Encontre, em cada grupo, o único número que é a soma de dois outros. Use três posições diferentes e circule a soma.", "In each group, find the only number that is the sum of two others. Use three different positions and circle the sum."),20f)
                 pieces += text("ID: ${block.puzzle.seed}",16f)
@@ -71,7 +74,7 @@ class PrintDocumentRenderer(private val context: Context) {
                 pieces += drawing((p.points.maxOf { it.y } + 40).toInt()) { ActivityDrawing.dots(it,p,block.answers) }
                 pieces += text(if(block.answers) p.subject.label(l) else l.text("Meu desenho: __________________\nAgora decore e pinte!", "My drawing: __________________\nNow decorate and color!"),20f)
             }
-            is PrintBlock.Game -> {
+            is PrintBlock.Game -> if (block.level.generatorVersion >= 2) pieces += GameArt.level(block.level, block.language, width, profile.margin, tone) else {
                 val l = block.language; val level = block.level
                 pieces += text("${level.game} • ${level.seed}", 18f, true)
                 pieces += drawing(650) { ActivityDrawing.game(it, level) }
@@ -79,7 +82,9 @@ class PrintDocumentRenderer(private val context: Context) {
                 pieces += text(PaperGameGenerator.rules(level.game, l), 18f)
                 pieces += text(l.text("Design original MakerPress • inspiração: Gladden Design", "Original MakerPress design • inspired by Gladden Design"), 15f)
             }
-            is PrintBlock.Study -> {
+            is PrintBlock.Study -> if (block.compact) {
+                pieces += text(block.sheet.questions.mapIndexed { i, q -> "${i + 1}) ${q.solution.lines().last()}" }.joinToString("\n"), 15f)
+            } else {
                 val s = block.sheet
                 pieces += text("${s.topic.label(s.language)} • ${s.seed}", 18f)
                 s.questions.forEachIndexed { i, q ->
@@ -88,6 +93,33 @@ class PrintDocumentRenderer(private val context: Context) {
                     q.figure?.let { f -> pieces += drawing(if(f.kind == "graph") 350 else 205) { ActivityDrawing.figure(it, f, block.answers) } }
                     if(block.answers) pieces += text(q.solution, 20f, spacing = 24)
                     else pieces += text("________________________________\n\n________________________________", 18f, spacing = 24)
+                }
+            }
+            is PrintBlock.Course -> pieces += GameArt.course(block.course, block.language, width, profile.margin, tone)
+            is PrintBlock.Maze -> {
+                val p = block.puzzle; val l = p.language
+                pieces += text(if (block.answers) l.text("Caminho da saída", "Path to the exit") else l.text("Entre pela seta de cima e saia pela de baixo.", "Enter at the top arrow and leave at the bottom one.") +
+                    if (p.stars.isNotEmpty() && !block.answers) l.text(" Pegue as ${p.stars.size} estrelas no caminho.", " Collect the ${p.stars.size} stars on the way.") else "", 18f)
+                pieces += GameArt.maze(p, block.answers, width, profile.margin)
+            }
+            is PrintBlock.Nonogram -> {
+                val p = block.puzzle; val l = p.language
+                pieces += text(if (block.answers) NonogramGenerator.label(p.subject, l) else l.text("Os números dizem quantos quadrados seguidos pintar em cada linha e coluna, na ordem, com pelo menos um vazio entre os grupos. Que figura aparece?",
+                    "The numbers tell how many squares in a row to fill in each line and column, in order, with at least one gap between groups. What picture appears?"), 16f)
+                if (p.given.isNotEmpty() && !block.answers) pieces += text(l.text("Dica: ${p.given.size} quadrados já pintados.", "Hint: ${p.given.size} squares already filled."), 14f)
+                pieces += GameArt.nonogram(p, block.answers, width, profile.margin)
+                if (!block.answers) pieces += text(l.text("Minha figura: ______________", "My picture: ______________"), 18f)
+            }
+            is PrintBlock.Bingo -> {
+                val card = block.card; val l = card.language
+                if (block.answers) {
+                    pieces += text(l.text("LISTA DO CHAMADOR · ${card.theme.label(l)}", "CALLER LIST · ${card.theme.label(l)}"), 18f, true)
+                    pieces += text(l.text("Sorteie, leia em voz alta e marque. ${if (card.theme == BingoTheme.TIMES) "Os alunos procuram o resultado." else ""}",
+                        "Draw, read aloud and tick. ${if (card.theme == BingoTheme.TIMES) "Students look for the answer." else ""}").trim(), 14f)
+                    pieces += GameArt.bingoCaller(card, width, profile.margin)
+                } else {
+                    pieces += GameArt.bingoCard(card, width, profile.margin)
+                    pieces += text(l.text("Nome: ____________________", "Name: ____________________"), 18f)
                 }
             }
             is PrintBlock.Text -> pieces += text(block.value, block.size, block.bold, block.alignment, block.spacing)
@@ -126,7 +158,7 @@ class PrintDocumentRenderer(private val context: Context) {
                 listOf(original, rotated, cropped, scaled).distinct().forEach { if (it != mono) it.recycle() }
                 pieces += Piece(height + 8) { c, y -> c.drawBitmap(mono, profile.margin.toFloat(), y, null); mono.recycle() }
             }
-            is PrintBlock.Pattern -> pieces += Piece(240) { c, y ->
+            is PrintBlock.Pattern -> if (block.kind.startsWith("DENSITY")) pieces += GameArt.calibration(width, profile.margin, if (block.kind.endsWith("_EN")) AppLanguage.EN else AppLanguage.PT_BR) else pieces += Piece(240) { c, y ->
                 for (i in 0..7) {
                     paint.color = Color.rgb(i * 255 / 7, i * 255 / 7, i * 255 / 7)
                     c.drawRect(profile.margin + i * width / 8f, y, profile.margin + (i + 1) * width / 8f, y + 80, paint)
@@ -142,6 +174,6 @@ class PrintDocumentRenderer(private val context: Context) {
         val bitmap = Bitmap.createBitmap(profile.width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap); canvas.drawColor(Color.WHITE)
         var y = profile.margin.toFloat(); pieces.forEach { it.draw(canvas, y); y += it.height }
-        return BitmapProcessor.monochrome(bitmap, if (document.blocks.any { it is PrintBlock.Pattern }) Dither.FLOYD_STEINBERG else Dither.THRESHOLD).also { bitmap.recycle() }
+        return BitmapProcessor.monochrome(bitmap, if (document.blocks.any { it is PrintBlock.Pattern && !it.kind.startsWith("DENSITY") }) Dither.FLOYD_STEINBERG else Dither.THRESHOLD).also { bitmap.recycle() }
     }
 }
